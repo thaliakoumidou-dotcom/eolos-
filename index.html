@@ -442,45 +442,7 @@ function DatasheetPage() {
       </div>
     </div>
   );
-}<!DOCTYPE html>
-<html lang="el">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eolos - Air Filter Tracking</title>
-    <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            background-color: #f9fbf9; 
-            margin: 0; 
-            padding: 50px; 
-        }
-        .container { 
-            background: white; 
-            padding: 30px; 
-            border-radius: 20px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
-            display: inline-block; 
-            max-width: 400px;
-        }
-        img { 
-            width: 250px; /* Μπορείς να αλλάξεις το μέγεθος εδώ */
-            height: auto;
-            border-radius: 10px;
-        }
-        h1 { color: #2d5a27; margin-top: 20px; }
-        p { color: #666; line-height: 1.6; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <img src="logo-new.png" alt="Eolos Logo">
-        <h1>Eolos-</h1>
-        <p>Έξυπνη παρακολούθηση φίλτρων αέρα με τη δύναμη της AI.</p>
-    </div>
-</body>
-</html>
+}
 
 function App() {
   const [tab,setTab]=useState("monitor");
@@ -499,4 +461,42 @@ function App() {
     let s=null;const tgt=life;
     const step=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/1900,1);setAnim((1-Math.pow(1-p,3))*tgt);if(p<1)requestAnimationFrame(step);};
     const id=requestAnimationFrame(step);
-    
+    // Hide splash after first frame
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const sp=document.getElementById("splash");
+      if(sp){sp.classList.add("hide");setTimeout(()=>sp.remove(),600);}
+    }));
+    return()=>cancelAnimationFrame(id);
+  },[]);
+
+  const switchTab=useCallback(t=>{vibe("light");setTab(t);},[]);
+
+  const logoTap=useCallback(()=>{
+    setTaps(n=>{
+      const nx=n+1;
+      if(nx>=5){setLife(100);setAnim(100);S.s("bs_life","100");vibe("heavy");return 0;}
+      clearTimeout(tmr.current);
+      tmr.current=setTimeout(()=>setTaps(0),1800);
+      return nx;
+    });
+  },[]);
+
+  const pages={monitor:MonitorPage,biosync:BioSyncPage,aiscan:AIScanPage,data:DatasheetPage};
+  const Page=pages[tab];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",maxWidth:480,margin:"0 auto",background:"#000",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",background:"radial-gradient(ellipse 80% 50% at 50% -10%,rgba(16,185,129,0.11) 0%,transparent 58%)"}}/>
+      <div key={tab} style={{flex:1,overflowY:"auto",overflowX:"hidden",position:"relative",zIndex:1,WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",animation:"pageIn 0.26s ease both"}}>
+        <Page life={life} anim={anim} taps={taps} onTap={logoTap}/>
+      </div>
+      <Dock tab={tab} setTab={switchTab}/>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
