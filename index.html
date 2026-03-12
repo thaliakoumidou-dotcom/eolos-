@@ -499,42 +499,4 @@ function App() {
     let s=null;const tgt=life;
     const step=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/1900,1);setAnim((1-Math.pow(1-p,3))*tgt);if(p<1)requestAnimationFrame(step);};
     const id=requestAnimationFrame(step);
-    // Hide splash after first frame
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      const sp=document.getElementById("splash");
-      if(sp){sp.classList.add("hide");setTimeout(()=>sp.remove(),600);}
-    }));
-    return()=>cancelAnimationFrame(id);
-  },[]);
-
-  const switchTab=useCallback(t=>{vibe("light");setTab(t);},[]);
-
-  const logoTap=useCallback(()=>{
-    setTaps(n=>{
-      const nx=n+1;
-      if(nx>=5){setLife(100);setAnim(100);S.s("bs_life","100");vibe("heavy");return 0;}
-      clearTimeout(tmr.current);
-      tmr.current=setTimeout(()=>setTaps(0),1800);
-      return nx;
-    });
-  },[]);
-
-  const pages={monitor:MonitorPage,biosync:BioSyncPage,aiscan:AIScanPage,data:DatasheetPage};
-  const Page=pages[tab];
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",height:"100vh",maxWidth:480,margin:"0 auto",background:"#000",position:"relative",overflow:"hidden"}}>
-      <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",background:"radial-gradient(ellipse 80% 50% at 50% -10%,rgba(16,185,129,0.11) 0%,transparent 58%)"}}/>
-      <div key={tab} style={{flex:1,overflowY:"auto",overflowX:"hidden",position:"relative",zIndex:1,WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",animation:"pageIn 0.26s ease both"}}>
-        <Page life={life} anim={anim} taps={taps} onTap={logoTap}/>
-      </div>
-      <Dock tab={tab} setTab={switchTab}/>
-    </div>
-  );
-}
-
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App/>);
-</script>
-</body>
-</html>
+    
