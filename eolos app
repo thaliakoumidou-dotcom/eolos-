@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BioSmart" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="BioSmart 120g — Premium air quality monitor & biochar filter tracker" />
+  <link rel="manifest" href="manifest.json" />
+  <title>BioSmart 120g</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; height: 100dvh; background: #000; overflow: hidden; -webkit-text-size-adjust: 100%; }
+    body { position: fixed; width: 100%; color: #fff; font-family: 'Space Grotesk', sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+    #root { height: 100%; height: 100dvh; }
+    * { -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { display: none; }
+    #splash { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:9999; transition:opacity 0.5s ease; }
+    #splash.hide { opacity:0; pointer-events:none; }
+    #splash-icon { font-size:60px; animation: splashPulse 1.4s ease infinite; }
+    #splash-name { font-size:14px; font-weight:700; letter-spacing:5px; color:#10B981; font-family:'Space Grotesk',sans-serif; }
+    #splash-sub  { font-size:10px; color:rgba(255,255,255,0.3); letter-spacing:3px; font-family:'Space Grotesk',sans-serif; }
+    @keyframes splashPulse {
+      0%,100% { transform:scale(1);   filter:drop-shadow(0 0 10px rgba(16,185,129,0.4)); }
+      50%      { transform:scale(1.1); filter:drop-shadow(0 0 28px rgba(16,185,129,0.9)); }
+    }
+    @keyframes pageIn    { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse     { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <div id="splash-icon">🍃</div>
+    <div id="splash-name">BIOSMART 120g</div>
+    <div id="splash-sub">INITIALIZING</div>
+  </div>
+  <div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const DECAY = 0.0055;
+const EM    = "#10B981";
+const DEF   = [35.1856, 33.3823];
+
+let _m = {};
+const S = {
+  g: k => { try { return localStorage.getItem(k); } catch { return _m[k]??null; } },
+  s: (k,v) => { try { localStorage.setItem(k,v); } catch { _m[k]=v; } },
+};
+
+const vibe = t => { try { if(navigator.vibrate) navigator.vibrate(t==="heavy"?[40]:t==="med"?[20]:[8]); } catch{} };
+
+function Tap({children, onTap, style={}, off=false, vt="light"}) {
+  const [dn,setDn] = useState(false);
+  const frd = useRef(false);
+  return (
+    <div style={{...style,
+      transform: dn&&!off?"scale(0.95)":"scale(1)",
+      transition: dn?"transform 0.08s ease":"transform 0.22s cubic-bezier(0.34,1.56,0.64,1)",
+      touchAction:"manipulation", cursor:off?"default":"pointer",
+      userSelect:"none", WebkitUserSelect:"none", WebkitTapHighlightColor:"transparent"}}
+      onPointerDown={e=>{ if(off)return; e.currentTarget.setPointerCapture(e.pointerId); setDn(true); frd.current=false; vibe(vt); }}
+      onPointerUp={()=>{ setDn(false); if(!off&&!frd.current){frd.current=true;onTap?.();} }}
+      onPointerCancel={()=>setDn(false)} onPointerLeave={()=>setDn(false)}>
+      {children}
+    </div>
+  );
+}
+
+function Gauge({val, anim}) {
+  const R=110,CX=140,CY=140,SW=14;
+  const circ=2*Math.PI*R, off=circ*(1-anim/100);
+  const c=val>60?EM:val>30?"#F59E0B":"#EF4444";
+  return (
+    <svg width="280" height="280" style={{filter:`drop-shadow(0 0 28px ${c}55)`,willChange:"transform"}}>
+      <defs>
+        <linearGradient id="gG" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={c}/><stop offset="100%" stopColor={c} stopOpacity=".5"/>
+        </linearGradient>
+        <filter id="gF"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={SW}/>
+      {Array.from({length:40},(_,i)=>{
+        const a=(i/40)*360-90,rad=a*Math.PI/180,on=i/40<=anim/100;
+        return <line key={i} x1={CX+(R-20)*Math.cos(rad)} y1={CY+(R-20)*Math.sin(rad)} x2={CX+(R-26)*Math.cos(rad)} y2={CY+(R-26)*Math.sin(rad)} stroke={on?c:"rgba(255,255,255,0.09)"} strokeWidth="1.5" strokeLinecap="round"/>;
+      })}
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="url(#gG)" strokeWidth={SW} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={off} transform={`rotate(-90 ${CX} ${CY})`} style={{transition:"stroke-dashoffset 1.8s cubic-bezier(0.34,1.56,0.64,1)",willChange:"stroke-dashoffset"}} filter="url(#gF)"/>
+      <circle cx={CX} cy={CY} r="7" fill={c} filter="url(#gF)"/>
+      <circle cx={CX} cy={CY} r="70" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1"/>
+    </svg>
+  );
+}
+
+const Glass = ({children,style={},glow=false,p=20}) => (
+  <div style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:20,padding:p,boxShadow:glow?"0 0 32px rgba(16,185,129,0.1),inset 0 1px 0 rgba(255,255,255,0.07)":"inset 0 1px 0 rgba(255,255,255,0.05)",...style}}>{children}</div>
+);
+
+const MonI  = ({a}) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/><circle cx="12" cy="12" r="3" fill={a?EM:"currentColor"}/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+const SynI  = ({a}) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M17 8h4V4M7 16H3v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+const ScanI = ({a}) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="15" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="3" y="15" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/><circle cx="18" cy="18" r="3" stroke={a?EM:"currentColor"} strokeWidth="1.5"/><circle cx="18" cy="18" r="1" fill={a?EM:"currentColor"}/></svg>;
+const DocI  = ({a}) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M8 8h8M8 12h8M8 16h5" stroke={a?EM:"currentColor"} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+
+function Dock({tab, setTab}) {
+  const tabs = [{id:"monitor",l:"Monitor",I:MonI},{id:"biosync",l:"Bio-Sync",I:SynI},{id:"aiscan",l:"AI Scan",I:ScanI},{id:"data",l:"Datasheet",I:DocI}];
+  return (
+    <div style={{flexShrink:0,display:"flex",justifyContent:"center",alignItems:"flex-end",padding:"10px 16px",paddingBottom:"calc(14px + env(safe-area-inset-bottom,0px))",background:"linear-gradient(to top,rgba(0,0,0,0.98),transparent)",position:"relative",zIndex:50}}>
+      <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.055)",backdropFilter:"blur(32px)",WebkitBackdropFilter:"blur(32px)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:32,padding:"8px 10px",boxShadow:"0 -4px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.08)"}}>
+        {tabs.map(({id,l,I}) => {
+          const on=tab===id;
+          return (
+            <Tap key={id} onTap={()=>setTab(id)} style={{background:on?"rgba(16,185,129,0.15)":"transparent",border:on?"1px solid rgba(16,185,129,0.32)":"1px solid transparent",borderRadius:24,padding:"10px 16px",color:on?EM:"rgba(255,255,255,0.38)",display:"flex",flexDirection:"column",alignItems:"center",gap:4,boxShadow:on?"0 0 20px rgba(16,185,129,0.28)":"none",minWidth:64,transition:"all 0.25s"}}>
+              <I a={on}/><span style={{fontSize:9,fontWeight:600,letterSpacing:0.8}}>{l.toUpperCase()}</span>
+            </Tap>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BioMap({coords,live,place}) {
+  const [ping,setPing]=useState(0);
+  const raf=useRef(null),last=useRef(0);
+  useEffect(()=>{
+    const tick=ts=>{ if(ts-last.current>55){setPing(p=>(p+1)%100);last.current=ts;} raf.current=requestAnimationFrame(tick); };
+    raf.current=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(raf.current);
+  },[]);
+  const W=400,H=240,seed=Math.abs(Math.round(coords[0]*1000+coords[1]*1000));
+  const rng=n=>((seed*9301+n*49297+233280)%233280)/233280;
+  const blk=Array.from({length:18},(_,i)=>({x:rng(i*3+1)*(W-60)+5,y:rng(i*3+2)*(H-40)+5,w:15+rng(i*3+3)*40,h:10+rng(i*5+1)*28,o:0.03+rng(i)*0.05}));
+  const hs=Array.from({length:8},(_,i)=>({y:20+rng(i*13)*(H-40),o:0.08+rng(i)*0.12,w:0.5+rng(i*7)*1.5}));
+  const vs=Array.from({length:10},(_,i)=>({x:10+rng(i*17+5)*(W-20),o:0.08+rng(i+3)*0.12,w:0.5+rng(i*11)*1.5}));
+  const mY=H*0.45+rng(99)*30,mX=W*0.3+rng(88)*60;
+  const pR=10+(ping/100)*52,pO=(1-ping/100)*0.65;
+  return (
+    <div style={{position:"relative",borderRadius:14,overflow:"hidden",height:H,border:"1px solid rgba(16,185,129,0.28)",background:"#040c08"}}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} style={{position:"absolute",inset:0}}>
+        <defs>
+          <radialGradient id="mv" cx="50%" cy="50%" r="55%"><stop offset="0%" stopColor="transparent"/><stop offset="100%" stopColor="rgba(0,0,0,0.72)"/></radialGradient>
+          <radialGradient id="mg" cx="50%" cy="50%" r="60%"><stop offset="0%" stopColor="rgba(16,185,129,0.07)"/><stop offset="100%" stopColor="transparent"/></radialGradient>
+        </defs>
+        <rect width={W} height={H} fill="#040c08"/>
+        <rect width={W} height={H} fill="url(#mg)"/>
+        {Array.from({length:18},(_,i)=><line key={`gv${i}`} x1={i*(W/18)} y1="0" x2={i*(W/18)} y2={H} stroke="rgba(16,185,129,0.04)" strokeWidth=".5"/>)}
+        {Array.from({length:11},(_,i)=><line key={`gh${i}`} x1="0" y1={i*(H/11)} x2={W} y2={i*(H/11)} stroke="rgba(16,185,129,0.04)" strokeWidth=".5"/>)}
+        {blk.map((b,i)=><rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill={`rgba(16,185,129,${b.o})`} rx="1"/>)}
+        {hs.map((s,i)=><line key={`h${i}`} x1="0" y1={s.y} x2={W} y2={s.y} stroke={`rgba(16,185,129,${s.o})`} strokeWidth={s.w}/>)}
+        {vs.map((s,i)=><line key={`v${i}`} x1={s.x} y1="0" x2={s.x} y2={H} stroke={`rgba(16,185,129,${s.o})`} strokeWidth={s.w}/>)}
+        <line x1="0" y1={mY} x2={W} y2={mY} stroke="rgba(16,185,129,0.3)" strokeWidth="2.5"/>
+        <line x1={mX} y1="0" x2={mX} y2={H} stroke="rgba(16,185,129,0.22)" strokeWidth="2"/>
+        <circle cx={W/2} cy={H/2} r={pR} fill="none" stroke={EM} strokeWidth="1" opacity={pO}/>
+        <circle cx={W/2} cy={H/2} r={pR*.55} fill="none" stroke={EM} strokeWidth=".7" opacity={pO*.5}/>
+        <circle cx={W/2} cy={H/2} r="7" fill={EM} opacity=".9"/>
+        <circle cx={W/2} cy={H/2} r="3" fill="#fff"/>
+        <rect width={W} height={H} fill="url(#mv)"/>
+      </svg>
+      <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-135%)",zIndex:10,pointerEvents:"none"}}>
+        <div style={{background:"rgba(0,0,0,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",border:"1px solid rgba(16,185,129,0.4)",borderRadius:9,padding:"5px 12px",whiteSpace:"nowrap"}}>
+          <span style={{fontSize:11,color:"#fff",fontWeight:700}}>📍 {place}</span>
+        </div>
+        <div style={{width:1,height:14,background:`linear-gradient(${EM},transparent)`,margin:"0 auto"}}/>
+      </div>
+      <div style={{position:"absolute",top:10,left:10,right:10,display:"flex",justifyContent:"space-between",zIndex:10,pointerEvents:"none"}}>
+        <div style={{background:"rgba(0,0,0,0.85)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:`1px solid rgba(16,185,129,${live?.4:.2})`,borderRadius:8,padding:"5px 10px",display:"flex",alignItems:"center",gap:6}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:live?EM:"#F59E0B",animation:"pulse 1.8s ease infinite"}}/>
+          <span style={{fontSize:9,color:live?EM:"#F59E0B",fontWeight:700,letterSpacing:1.5}}>{live?"GPS LIVE":"DEFAULT"}</span>
+        </div>
+        <div style={{background:"rgba(0,0,0,0.85)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"5px 10px"}}>
+          <span style={{fontSize:9,color:"rgba(255,255,255,0.35)",letterSpacing:1}}>ENCRYPTED</span>
+        </div>
+      </div>
+      <div style={{position:"absolute",bottom:10,left:10,right:10,display:"flex",justifyContent:"space-between",zIndex:10,pointerEvents:"none"}}>
+        <div style={{background:"rgba(0,0,0,0.8)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"4px 10px"}}>
+          <span style={{fontSize:9,color:"rgba(255,255,255,0.4)",fontFamily:"monospace"}}>{coords[0].toFixed(4)}°N {coords[1].toFixed(4)}°E</span>
+        </div>
+        <div style={{background:"rgba(0,0,0,0.8)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"4px 10px"}}>
+          <span style={{fontSize:9,color:EM,fontWeight:700,letterSpacing:1}}>BIO-ZONE ●</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonitorPage({life,anim,taps,onTap}) {
+  const c=life>60?EM:life>30?"#F59E0B":"#EF4444";
+  const lbl=life>60?"OPTIMAL":life>30?"DEGRADING":"REPLACE";
+  const mx=[{l:"PM2.5",v:"6 μg",s:"Excellent"},{l:"CO₂",v:"412 ppm",s:"Normal"},{l:"VOC",v:"0.08",s:"Low"},{l:"HUMID",v:"54%",s:"Ideal"}];
+  return (
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"max(52px, env(safe-area-inset-top, 20px))",paddingBottom:18}}>
+        <div>
+          <p style={{fontSize:10,letterSpacing:3,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:4}}>ENVIRONMENT MONITOR</p>
+          <h1 style={{fontSize:24,fontWeight:800,letterSpacing:-0.8}}>BioSmart <span style={{color:EM}}>120g</span></h1>
+        </div>
+        <Tap onTap={onTap} vt="heavy" style={{width:44,height:44,borderRadius:14,background:taps>0?`rgba(16,185,129,${Math.min(taps*0.18,0.7)})`:"rgba(255,255,255,0.06)",border:`1px solid rgba(16,185,129,${taps*0.25+0.12})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:taps>0?`0 0 ${taps*10}px rgba(16,185,129,0.5)`:"none",fontSize:20,transition:"all 0.2s"}}>🍃</Tap>
+      </div>
+      <Glass glow style={{marginBottom:12,display:"flex",flexDirection:"column",alignItems:"center"}} p={24}>
+        <p style={{fontSize:10,letterSpacing:3,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:10}}>FILTER LIFE REMAINING</p>
+        <div style={{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+          <Gauge val={life} anim={anim}/>
+          <div style={{position:"absolute",textAlign:"center",pointerEvents:"none"}}>
+            <div style={{fontSize:50,fontWeight:800,letterSpacing:-3,color:c,lineHeight:1,textShadow:`0 0 32px ${c}77`}}>{Math.round(anim)}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.28)",fontWeight:500,marginTop:2}}>percent</div>
+            <div style={{marginTop:8,fontSize:9,fontWeight:700,letterSpacing:3.5,color:c,background:`${c}1a`,border:`1px solid ${c}44`,borderRadius:100,padding:"3px 12px",display:"inline-block"}}>{lbl}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",width:"100%",marginTop:4,paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+          {[["DECAY/DAY","0.55%","#F59E0B"],["DAYS LEFT",`${Math.round(life/DECAY)}`,EM],["AQI","28",EM]].map(([l,v,col],i)=>(
+            <div key={l} style={{flex:1,textAlign:"center",borderLeft:i>0?"1px solid rgba(255,255,255,0.05)":"none"}}>
+              <p style={{fontSize:9,color:"rgba(255,255,255,0.28)",letterSpacing:1.2,marginBottom:3}}>{l}</p>
+              <p style={{fontSize:16,fontWeight:700,color:col}}>{v}</p>
+            </div>
+          ))}
+        </div>
+      </Glass>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {mx.map(({l,v,s})=>(
+          <Glass key={l} p={14}>
+            <p style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:5}}>{l}</p>
+            <p style={{fontSize:20,fontWeight:800,letterSpacing:-0.5,color:"#fff",marginBottom:2}}>{v}</p>
+            <p style={{fontSize:10,color:EM,fontWeight:600}}>{s}</p>
+          </Glass>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BioSyncPage() {
+  const [coords,setCoords]=useState(DEF);
+  const [live,setLive]=useState(false);
+  const [status,setStatus]=useState("acquiring");
+  const [place,setPlace]=useState("Egomi, Nicosia");
+  const geo=useCallback(async(lat,lng)=>{
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`);
+      const d=await r.json();const a=d.address||{};
+      const di=a.suburb||a.neighbourhood||a.quarter||a.village||a.city_district||"";
+      const ci=a.city||a.town||a.municipality||a.county||"";
+      setPlace([di,ci].filter(Boolean).join(", ")||a.country||"Unknown");
+    }catch{}
+  },[]);
+  useEffect(()=>{
+    if(!navigator.geolocation){setStatus("unavailable");geo(...DEF);return;}
+    navigator.geolocation.getCurrentPosition(
+      ({coords:{latitude:lat,longitude:lng}})=>{setCoords([lat,lng]);setLive(true);setStatus("live");geo(lat,lng);},
+      ()=>{setLive(false);setStatus("denied");geo(...DEF);},
+      {timeout:8000,maximumAge:60000,enableHighAccuracy:true}
+    );
+  },[]);
+  const ins=[{l:"Outdoor AQI",v:"34",d:"+6 vs indoor",ok:false},{l:"Indoor AQI",v:"28",d:"−18% cleaner",ok:true},{l:"Filtration",v:"99.97%",d:"↑ Optimal",ok:true},{l:"Bio-Load",v:"Low",d:"Healthy",ok:true}];
+  const sp=[65,72,58,80,74,68,76,82,70,75,78,72];
+  return (
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{paddingTop:"max(52px, env(safe-area-inset-top, 20px))",paddingBottom:16}}>
+        <p style={{fontSize:10,letterSpacing:3,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:4}}>ENVIRONMENT ANALYTICS</p>
+        <h1 style={{fontSize:24,fontWeight:800,letterSpacing:-0.8,marginBottom:12}}>Bio<span style={{color:EM}}>Sync</span></h1>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:status==="live"?EM:"#F59E0B",animation:"pulse 1.2s ease infinite"}}/>
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(16,185,129,0.09)",border:"1px solid rgba(16,185,129,0.28)",borderRadius:100,padding:"4px 14px 4px 10px"}}>
+            <span style={{fontSize:12}}>📍</span>
+            <span style={{fontSize:12,fontWeight:700,color:"#fff"}}>{place}</span>
+          </div>
+        </div>
+      </div>
+      <Glass glow style={{marginBottom:12}} p={12}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:10,letterSpacing:2,color:"rgba(255,255,255,0.28)",fontWeight:600}}>SATELLITE SYNC</span>
+          <span style={{fontSize:9,color:live?EM:"#F59E0B",fontWeight:700,background:live?"rgba(16,185,129,0.1)":"rgba(245,158,11,0.1)",border:`1px solid ${live?"rgba(16,185,129,0.3)":"rgba(245,158,11,0.3)"}`,borderRadius:100,padding:"3px 10px"}}>
+            {live?"● GPS LIVE":status==="acquiring"?"○ ACQUIRING":"● DEFAULT"}
+          </span>
+        </div>
+        <BioMap coords={coords} live={live} place={place}/>
+      </Glass>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        {ins.map(({l,v,d,ok})=>(
+          <Glass key={l} p={14}>
+            <p style={{fontSize:9,letterSpacing:2,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:5}}>{l}</p>
+            <p style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:2}}>{v}</p>
+            <p style={{fontSize:10,color:ok?EM:"#F59E0B",fontWeight:600}}>{d}</p>
+          </Glass>
+        ))}
+      </div>
+      <Glass p={16}>
+        <p style={{fontSize:10,letterSpacing:2,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:12}}>24H EFFICIENCY TREND</p>
+        <svg width="100%" height="56" viewBox="0 0 280 56" preserveAspectRatio="none">
+          <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={EM} stopOpacity=".28"/><stop offset="100%" stopColor={EM} stopOpacity="0"/></linearGradient></defs>
+          {(()=>{const pts=sp.map((v,i)=>`${(i/(sp.length-1))*280},${56-(v/100)*46}`);return(<><path d={`M 0,56 L ${pts.join(" L ")} L 280,56 Z`} fill="url(#sg)"/><path d={`M ${pts.join(" L ")}`} stroke={EM} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>{sp.map((v,i)=><circle key={i} cx={(i/(sp.length-1))*280} cy={56-(v/100)*46} r="2.5" fill={EM}/>)}</>);})()}
+        </svg>
+      </Glass>
+    </div>
+  );
+}
+
+function AIScanPage() {
+  const [phase,setPhase]=useState("idle");
+  const [prog,setProg]=useState(0);
+  const [sy,setSy]=useState(0);
+  const [res,setRes]=useState(null);
+  const raf=useRef(null),t0=useRef(null);
+  const scan=useCallback(()=>{
+    if(phase==="scanning")return;
+    vibe("med");
+    setPhase("scanning");setRes(null);setProg(0);setSy(0);
+    t0.current=performance.now();
+    const D=3400;
+    const tick=now=>{
+      const p=Math.min((now-t0.current)/D,1);
+      setProg(Math.round(p*100));setSy(p*220);
+      if(p<1){raf.current=requestAnimationFrame(tick);}
+      else{setPhase("done");vibe("heavy");setRes({den:73,par:"0.3μm",eff:"99.97%",days:Math.round(73/DECAY)});}
+    };
+    raf.current=requestAnimationFrame(tick);
+  },[phase]);
+  useEffect(()=>()=>cancelAnimationFrame(raf.current),[]);
+  const scanning=phase==="scanning";
+  const corners=[[0,0],[1,0],[0,1],[1,1]];
+  return (
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{paddingTop:"max(52px, env(safe-area-inset-top, 20px))",paddingBottom:18}}>
+        <p style={{fontSize:10,letterSpacing:3,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:4}}>NEURAL ANALYSIS</p>
+        <h1 style={{fontSize:24,fontWeight:800,letterSpacing:-0.8}}>AI <span style={{color:EM}}>Scan</span></h1>
+      </div>
+      <Glass glow style={{marginBottom:14,overflow:"hidden"}} p={0}>
+        <div style={{position:"relative",height:260,background:"#030d07",overflow:"hidden"}}>
+          <svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}} viewBox="0 0 400 260" preserveAspectRatio="none">
+            {Array.from({length:11},(_,i)=><line key={`v${i}`} x1={i*40} y1="0" x2={i*40} y2="260" stroke="rgba(16,185,129,0.07)" strokeWidth=".5"/>)}
+            {Array.from({length:7},(_,i)=><line key={`h${i}`} x1="0" y1={i*40} x2="400" y2={i*40} stroke="rgba(16,185,129,0.07)" strokeWidth=".5"/>)}
+          </svg>
+          <div style={{position:"absolute",inset:"26px 34px",display:"grid",gridTemplateColumns:"repeat(18,1fr)",gridTemplateRows:"repeat(10,1fr)",gap:2}}>
+            {Array.from({length:180},(_,i)=>{
+              const sat=res&&i>=132,lit=scanning&&i<=(prog/100)*180;
+              return <div key={i} style={{borderRadius:1,background:sat?"rgba(239,68,68,0.62)":phase==="done"?"rgba(16,185,129,0.72)":lit?"rgba(16,185,129,0.45)":"rgba(255,255,255,0.07)",transition:phase==="done"?"background 0.4s":"none"}}/>;
+            })}
+          </div>
+          {scanning&&<div style={{position:"absolute",left:0,right:0,top:26+sy,height:3,background:`linear-gradient(90deg,transparent 3%,${EM}bb 35%,${EM} 50%,${EM}bb 65%,transparent 97%)`,boxShadow:`0 0 18px ${EM}`,pointerEvents:"none",willChange:"top"}}/>}
+          {corners.map(([x,y],i)=>(
+            <div key={i} style={{position:"absolute",width:26,height:26,top:y?"auto":12,bottom:y?12:"auto",left:x?"auto":12,right:x?12:"auto",borderTop:y?"none":`2px solid ${EM}`,borderBottom:y?`2px solid ${EM}`:"none",borderLeft:x?"none":`2px solid ${EM}`,borderRight:x?`2px solid ${EM}`:"none",opacity:0.85}}/>
+          ))}
+          <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"8px 16px",background:"rgba(0,0,0,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:10,letterSpacing:2,color:EM,fontWeight:700}}>{scanning?`SCANNING ${prog}%`:phase==="done"?"● COMPLETE":"○ READY"}</span>
+            {scanning&&<div style={{width:72,height:3,background:"rgba(255,255,255,0.1)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${prog}%`,background:EM}}/></div>}
+          </div>
+        </div>
+      </Glass>
+      {res&&(
+        <Glass glow style={{marginBottom:14}} p={16}>
+          <p style={{fontSize:10,letterSpacing:2,color:EM,fontWeight:700,marginBottom:12}}>● FILTER ANALYSIS — BS-120G-V2</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[["Filter Density",`${res.den}%`,res.den>60?EM:"#F59E0B"],["Particle Size",res.par,EM],["Efficiency",res.eff,EM],["Days Left",`${res.days}d`,res.days>60?EM:"#F59E0B"]].map(([lb,vl,col])=>(
+              <div key={lb} style={{padding:"12px 14px",background:"rgba(16,185,129,0.05)",borderRadius:12,border:"1px solid rgba(16,185,129,0.12)"}}>
+                <p style={{fontSize:9,color:"rgba(255,255,255,0.32)",letterSpacing:1.5,fontWeight:600,marginBottom:5}}>{lb.toUpperCase()}</p>
+                <p style={{fontSize:19,fontWeight:800,color:col}}>{vl}</p>
+              </div>
+            ))}
+          </div>
+        </Glass>
+      )}
+      <Tap onTap={scan} off={scanning} vt="med" style={{width:"100%",padding:"16px",borderRadius:18,textAlign:"center",background:scanning?"rgba(16,185,129,0.06)":"rgba(16,185,129,0.11)",border:`1px solid rgba(16,185,129,${scanning?.14:.42})`,color:scanning?"rgba(16,185,129,0.38)":EM,fontSize:12,fontWeight:700,letterSpacing:3.5,boxShadow:scanning?"none":`0 0 28px rgba(16,185,129,0.14)`,transition:"all 0.3s"}}>
+        {scanning?`ANALYZING… ${prog}%`:phase==="done"?"RE-SCAN FILTER":"INITIATE NEURAL SCAN"}
+      </Tap>
+    </div>
+  );
+}
+
+function DatasheetPage() {
+  const [open,setOpen]=useState("p1");
+  const secs=[
+    {id:"p1",icon:"⬡",label:"01  Physical Properties",rows:[["Model","BS-120G-V2"],["Net Weight","120g (±3g)"],["Medium","Activated Virgin Biochar"],["BET Surface Area","350–550 m²/g"],["Total Active Surface","> 48,000 m²"],["Pore Volume","0.45 cm³/g"],["Bulk Density","360 kg/m³"],["Grain Size","1.0–5.0 mm"]]},
+    {id:"p2",icon:"◈",label:"02  Performance",rows:[["Capture","VOCs, CO₂, HCHO, NOₓ"],["Lifespan","180-day linear decay"],["Decay Rate","0.55% / 24h"],["Toluene/Xylene","> 92% pass"],["Formaldehyde","> 75% reduction"],["CO₂ Capture","2.3 mmol/g"]]},
+    {id:"p3",icon:"◎",label:"03  Environment",rows:[["Temperature","15–35°C"],["Humidity","30–70% RH"],["Effective Zone","1.5–2.0 m"],["Placement","Stagnant zones, bedside"]]},
+    {id:"p4",icon:"♻",label:"04  Sustainability",rows:[["Carbon","≥85% stable"],["Biodegradable","100%"],["End-of-Life","Soil amendment"],["Standard","ISO 16890"],["Ozone","Zero emission"]]},
+  ];
+  return (
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{paddingTop:"max(52px, env(safe-area-inset-top, 20px))",paddingBottom:14}}>
+        <p style={{fontSize:10,letterSpacing:3,color:"rgba(255,255,255,0.28)",fontWeight:600,marginBottom:4}}>MODEL BS-120G-V2</p>
+        <h1 style={{fontSize:24,fontWeight:800,letterSpacing:-0.8}}>Technical <span style={{color:EM}}>Datasheet</span></h1>
+      </div>
+      <Glass glow style={{marginBottom:14,display:"flex",alignItems:"center",gap:14}} p={14}>
+        <div style={{width:48,height:48,borderRadius:14,background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🍃</div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontWeight:800,fontSize:14,marginBottom:2}}>BioSmart 120g</p>
+          <p style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginBottom:7}}>Activated Virgin Biochar · Air Purifier</p>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {["ISO 16890","0% Ozone","180 Days"].map(t=><span key={t} style={{fontSize:8,fontWeight:700,color:EM,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:100,padding:"2px 7px"}}>{t}</span>)}
+          </div>
+        </div>
+      </Glass>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+        {[["550","m²/g","BET"],["180","days","Life"],["99.97","%","Filter"]].map(([v,u,l])=>(
+          <Glass key={l} style={{textAlign:"center"}} p={12}>
+            <p style={{fontSize:18,fontWeight:800,color:EM,lineHeight:1,marginBottom:3}}>{v}<span style={{fontSize:9,color:"rgba(16,185,129,0.6)"}}>{u}</span></p>
+            <p style={{fontSize:8,color:"rgba(255,255,255,0.28)",letterSpacing:1.5,fontWeight:600}}>{l.toUpperCase()}</p>
+          </Glass>
+        ))}
+      </div>
+      {secs.map(({id,icon,label,rows})=>{
+        const on=open===id;
+        return (
+          <div key={id} style={{marginBottom:7}}>
+            <Tap onTap={()=>{vibe("light");setOpen(p=>p===id?null:id);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:on?"rgba(16,185,129,0.09)":"rgba(255,255,255,0.03)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${on?"rgba(16,185,129,0.28)":"rgba(255,255,255,0.07)"}`,borderRadius:on?"14px 14px 0 0":14,padding:"13px 16px",transition:"all 0.2s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:14,color:on?EM:"rgba(255,255,255,0.28)"}}>{icon}</span>
+                <span style={{fontSize:12,fontWeight:700,color:on?"#fff":"rgba(255,255,255,0.5)"}}>{label}</span>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{transform:on?"rotate(180deg)":"rotate(0)",transition:"transform 0.28s cubic-bezier(0.34,1.56,0.64,1)",color:on?EM:"rgba(255,255,255,0.28)"}}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </Tap>
+            {on&&(
+              <div style={{background:"rgba(255,255,255,0.02)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(16,185,129,0.14)",borderTop:"none",borderRadius:"0 0 14px 14px",overflow:"hidden",animation:"slideDown 0.22s ease"}}>
+                {rows.map(([k,v],i)=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"9px 16px",gap:12,borderTop:i>0?"1px solid rgba(255,255,255,0.035)":"none",background:i%2===0?"rgba(255,255,255,0.012)":"transparent"}}>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontWeight:500,flexShrink:0,minWidth:100}}>{k}</span>
+                    <span style={{fontSize:11,color:"rgba(255,255,255,0.9)",fontWeight:600,textAlign:"right"}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div style={{marginTop:10,padding:"16px",borderRadius:16,background:"linear-gradient(135deg,rgba(16,185,129,0.09),rgba(16,185,129,0.03))",border:"1px solid rgba(16,185,129,0.22)"}}>
+        <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:20,flexShrink:0}}>🌱</span>
+          <div>
+            <p style={{fontSize:12,fontWeight:700,color:EM,marginBottom:5}}>End-of-Life: Give Back to Nature</p>
+            <p style={{fontSize:11,color:"rgba(255,255,255,0.42)",lineHeight:1.75}}>When your BioSmart reaches <strong style={{color:"rgba(255,255,255,0.78)"}}>0% filter life</strong> after 180 days, mix the biochar into houseplant potting soil. Full circular lifecycle. Zero waste.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [tab,setTab]=useState("monitor");
+  const [life,setLife]=useState(()=>{
+    const sv=S.g("bs_life"),sd=S.g("bs_date");
+    if(sv&&sd){const d=(Date.now()-parseInt(sd))/86400000;return Math.max(0,parseFloat(sv)-d*DECAY*100);}
+    return 87.3;
+  });
+  const [anim,setAnim]=useState(0);
+  const [taps,setTaps]=useState(0);
+  const tmr=useRef(null);
+
+  useEffect(()=>{S.s("bs_life",life.toString());S.s("bs_date",Date.now().toString());},[life]);
+
+  useEffect(()=>{
+    let s=null;const tgt=life;
+    const step=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/1900,1);setAnim((1-Math.pow(1-p,3))*tgt);if(p<1)requestAnimationFrame(step);};
+    const id=requestAnimationFrame(step);
+    // Hide splash after first frame
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const sp=document.getElementById("splash");
+      if(sp){sp.classList.add("hide");setTimeout(()=>sp.remove(),600);}
+    }));
+    return()=>cancelAnimationFrame(id);
+  },[]);
+
+  const switchTab=useCallback(t=>{vibe("light");setTab(t);},[]);
+
+  const logoTap=useCallback(()=>{
+    setTaps(n=>{
+      const nx=n+1;
+      if(nx>=5){setLife(100);setAnim(100);S.s("bs_life","100");vibe("heavy");return 0;}
+      clearTimeout(tmr.current);
+      tmr.current=setTimeout(()=>setTaps(0),1800);
+      return nx;
+    });
+  },[]);
+
+  const pages={monitor:MonitorPage,biosync:BioSyncPage,aiscan:AIScanPage,data:DatasheetPage};
+  const Page=pages[tab];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",maxWidth:480,margin:"0 auto",background:"#000",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",background:"radial-gradient(ellipse 80% 50% at 50% -10%,rgba(16,185,129,0.11) 0%,transparent 58%)"}}/>
+      <div key={tab} style={{flex:1,overflowY:"auto",overflowX:"hidden",position:"relative",zIndex:1,WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",animation:"pageIn 0.26s ease both"}}>
+        <Page life={life} anim={anim} taps={taps} onTap={logoTap}/>
+      </div>
+      <Dock tab={tab} setTab={switchTab}/>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
