@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -435,7 +436,7 @@ function CameraOverlay({onClose,room}){
       const p=Math.min((now-t0.current)/D,1);
       setScanPct(Math.round(p*100));
       if(p<1){raf.current=requestAnimationFrame(tick)}
-      else{setPhase("placement");vibe("heavy");setRes({density:73,eff:"99.97%",days:Math.round(73/DECAY)});}
+      else{setPhase("placement");vibe("heavy");setRes({density:73,eff:"99.97%",days:Math.round(73/(DECAY*100))});}
     };
     raf.current=requestAnimationFrame(tick);
   };
@@ -727,7 +728,7 @@ function MonitorPage({life,anim,taps,onTap,room,deviceName}){
           </div>
         </div>
         <div style={{display:"flex",width:"100%",marginTop:4,paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-          {[["DECAY/DAY","0.55%","#F59E0B"],["DAYS LEFT",`${Math.round(life/DECAY)}`,EM],["AQI","28",EM]].map(([l,v,col],i)=>(
+          {[["DECAY/DAY","0.55%","#F59E0B"],["DAYS LEFT",`${Math.round(life/(DECAY*100))}`,EM],["AQI","28",EM]].map(([l,v,col],i)=>(
             <div key={l} style={{flex:1,textAlign:"center",borderLeft:i>0?"1px solid rgba(255,255,255,0.05)":"none"}}>
               <p style={{fontSize:9,color:"rgba(255,255,255,0.25)",letterSpacing:1.2,marginBottom:3}}>{l}</p>
               <p style={{fontSize:16,fontWeight:800,color:col}}>{v}</p>
@@ -800,7 +801,7 @@ function AIScanPage({room,onOpenCamera}){
     if(phase==="scanning")return;
     vibe("med");setPhase("scanning");setRes(null);setProg(0);setSy(0);
     t0.current=performance.now();const D=3400;
-    const tick=now=>{const p=Math.min((now-t0.current)/D,1);setProg(Math.round(p*100));setSy(p*214);if(p<1){raf.current=requestAnimationFrame(tick)}else{setPhase("done");vibe("heavy");setRes({den:73,par:"0.3μm",eff:"99.97%",days:Math.round(73/DECAY)})}};
+    const tick=now=>{const p=Math.min((now-t0.current)/D,1);setProg(Math.round(p*100));setSy(p*214);if(p<1){raf.current=requestAnimationFrame(tick)}else{setPhase("done");vibe("heavy");setRes({den:73,par:"0.3μm",eff:"99.97%",days:Math.round(73/(DECAY*100))})}};
     raf.current=requestAnimationFrame(tick);
   },[phase]);
   useEffect(()=>()=>cancelAnimationFrame(raf.current),[]);
